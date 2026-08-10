@@ -1,17 +1,105 @@
 ﻿
 Imports System.Net.Http
-Imports System.Xml.Linq
+Imports System.Net.Http.Headers
 Imports System.Windows.Forms.VisualStyles.VisualStyleElement
+Imports System.Xml.Linq
 
+''' <summary>
+''' Die Hauptklasse der Windows Forms-Anwendung, die Funktionen zum Abrufen von XML-Daten von einer API und zum Anzeigen dieser Daten in einem TreeView-Steuerelement bereitstellt.
+''' </summary>
 Public Class Form1
 
+  '' HttpClient als private Instanz für die gesamte Form
+  Private ReadOnly _httpClient As New HttpClient()
+
+  ''' <summary>
+  ''' Asynchrone Methode zum Abrufen von XML-Daten von einer angegebenen URL.
+  ''' </summary>
+  ''' <param name="url">Die URL der XML-Daten</param>
+  ''' <returns>Die XML-Daten als String</returns>
+  Public Async Function GetXmlAsync(url As String) As Task(Of String)
+
+    Try
+      ' Prüfen, ob eine URL übergeben wurde
+      If String.IsNullOrWhiteSpace(url) Then
+        Throw New ArgumentException("Die URL darf nicht leer sein.")
+      End If
+
+      ' XML als Antwort anfordern
+      Using request As New HttpRequestMessage(HttpMethod.Get, url)
+
+        request.Headers.Accept.Clear()
+        request.Headers.Accept.Add(
+                    New MediaTypeWithQualityHeaderValue("application/xml")
+                )
+
+        ' HTTP Request ausführen
+        Using response As HttpResponseMessage =
+                    Await _httpClient.SendAsync(request)
+
+          ' XML-Inhalt lesen
+          Dim xml As String =
+                        Await response.Content.ReadAsStringAsync()
+
+          ' HTTP-Fehler wie 404 oder 500
+          If Not response.IsSuccessStatusCode Then
+
+            Return "<error></error>"
+
+          End If
+
+          Return xml
+
+        End Using
+
+      End Using
+
+    Catch ex As TaskCanceledException
+
+      Return "<error>" &
+                   "<message>Timeout beim HTTP Request</message>" &
+                   "</error>"
+    Catch ex As HttpRequestException
+
+      Return "<error>" &
+             "<message>" & XmlEscape(ex.Message) & "</message>" &
+             "</error>"
+
+    Catch ex As Exception
+
+      Return "<error>" &
+             "<message>" & XmlEscape(ex.Message) & "</message>" &
+             "</error>"
+    End Try
+
+  End Function
+
+  ''' <summary>
+  ''' Escaped einen String für die Verwendung in XML.
+  ''' </summary>
+  ''' <param name="value">Der zu escapende String</param>
+  ''' <returns>Der escapede String</returns>
+  Private Function XmlEscape(value As String) As String
+
+    If value Is Nothing Then Return ""
+
+    Return System.Security.SecurityElement.Escape(value)
+
+  End Function
+
+  ''' <summary>
+  ''' Asynchrone Methode zum Aufrufen einer API und Abrufen der Antwort als String.
+  ''' </summary>
+  ''' <param name="url">Die URL der API</param>
+  ''' <returns>Die API-Antwort als String</returns>
   Public Async Function ApiAufrufenAsync(url As String) As Task(Of String)
 
     Try
+      ' Prüfen, ob eine URL übergeben wurde
       Using client As New HttpClient()
-
+        ' Timeout auf 30 Sekunden setzen
         client.Timeout = TimeSpan.FromSeconds(30)
-
+        ' HTTP-Request ausführen
         Dim response As HttpResponseMessage =
             Await client.GetAsync(url)
 
@@ -21,6 +109,7 @@ Public Class Form1
         ' JSON als String zurückgeben
         Dim json As String =
             Await response.Content.ReadAsStringAsync()
+
 
         Return json
 
@@ -42,17 +131,28 @@ Public Class Form1
 
   End Function
 
+  ''' <summary>
+  ''' Event-Handler für den Klick auf Button1. Ruft die API auf und lädt die XML-Daten in das TreeView.
+  ''' </summary>
+  ''' <param name="sender">Das auslösende Steuerelement</param>
+  ''' <param name="e">Die Ereignisdaten</param>
   Private Async Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+    ' URL der API, die XML-Daten zurückgibt
     Dim url As String = "http://www.efa-bw.de/nvbw/XML_DM_REQUEST?typeInfo_dm=stopID&nameInfo_dm=6900090&deleteAssignedStops_dm=0&mode=direct&useRealtime=1&limit=10"
-
+    ' Asynchrone Methode aufrufen, um die API zu erreichen und die XML-Daten abzurufen
     Dim json As String = Await ApiAufrufenAsync(url)
-
+    '
     LoadXmlToTreeView(json)
 
 
   End Sub
 
+#Region "XML in TreeView laden"
 
+  ''' <summary>
+  ''' Lädt XML-Daten in das TreeView-Steuerelement.
+  ''' </summary>
+  ''' <param name="pXml">Die XML-Daten als String</param>
   Public Sub LoadXmlToTreeView(pXml As String)
     Try
       ' TreeView leeren und Performance-Optimierung aktivieren
@@ -86,9 +186,12 @@ Public Class Form1
     End Try
   End Sub
 
+
   ''' <summary>
-  ''' Rekursives Durchlaufen aller XML-Elemente.
+  ''' Rekursive Methode zum Parsen von XML-Elementen und Hinzufügen zu TreeNodes.
   ''' </summary>
+  ''' <param name="element">Das zu parsende XML-Element</param>
+  ''' <param name="parentNode">Der übergeordnete TreeNodes</param>
   Private Sub ParseXmlElement(element As XElement, parentNode As TreeNode)
     For Each childElement As XElement In element.Elements()
       ' Knotentext standardmäßig auf den Elementnamen setzen
@@ -110,9 +213,12 @@ Public Class Form1
     Next
   End Sub
 
+
   ''' <summary>
-  ''' Fügt dem TreeNode vorhandene XML-Attribute als Unterknoten hinzu.
+  ''' Fügt die Attribute eines XML-Elements als TreeNodes hinzu.  
   ''' </summary>
+  ''' <param name="element">Das XML-Element, dessen Attribute hinzugefügt werden</param>
+  ''' <param name="node">Der TreeNodes, dem die Attribute hinzugefügt werden</param>
   Private Sub AddAttributes(element As XElement, node As TreeNode)
     If element.HasAttributes Then
       For Each attr As XAttribute In element.Attributes()
@@ -125,7 +231,18 @@ Public Class Form1
     End If
   End Sub
 
+#End Region
 
+  ''' <summary>
+  ''' Event-Handler für den Klick auf Button2. Ruft die XML-Daten von der API ab und lädt sie in das TreeView.
+  ''' </summary>
+  ''' <param name="sender">Das auslösende Steuerelement</param>
+  ''' <param name="e">Die Ereignisdaten</param>
+  Private Async Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
+    Dim url As String = "http://www.efa-bw.de/nvbw/XML_DM_REQUEST?typeInfo_dm=stopID&nameInfo_dm=6900090&deleteAssignedStops_dm=0&mode=direct&useRealtime=1&limit=10"
 
+    Dim json As String = Await GetXmlAsync(url)
 
+    LoadXmlToTreeView(json)
+  End Sub
 End Class
