@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="XmlToTreeView.vbproj" Id="6067d4b9-146e-4ac4-9174-a6d60f8f44a2" />
+  <Properties Name="SolutionProperties">
+    <Property Name="WorkspaceFolder" Value="..\XmlToTreeView\" />
+  </Properties>
+</Solution>
