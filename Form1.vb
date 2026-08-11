@@ -137,6 +137,8 @@ Public Class Form1
   ''' <param name="sender">Das auslösende Steuerelement</param>
   ''' <param name="e">Die Ereignisdaten</param>
   Private Async Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+
+    TreeView1.Nodes.Clear()
     ' URL der API, die XML-Daten zurückgibt
     Dim url As String = "http://www.efa-bw.de/nvbw/XML_DM_REQUEST?typeInfo_dm=stopID&nameInfo_dm=6900090&deleteAssignedStops_dm=0&mode=direct&useRealtime=1&limit=10"
     ' Asynchrone Methode aufrufen, um die API zu erreichen und die XML-Daten abzurufen
@@ -239,6 +241,9 @@ Public Class Form1
   ''' <param name="sender">Das auslösende Steuerelement</param>
   ''' <param name="e">Die Ereignisdaten</param>
   Private Async Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
+
+    TreeView1.Nodes.Clear()
+
     Dim url As String = "http://www.efa-bw.de/nvbw/XML_DM_REQUEST?typeInfo_dm=stopID&nameInfo_dm=6900090&deleteAssignedStops_dm=0&mode=direct&useRealtime=1&limit=10"
 
     Dim json As String = Await GetXmlAsync(url)
