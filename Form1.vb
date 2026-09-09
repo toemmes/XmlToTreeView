@@ -1,8 +1,6 @@
 ﻿
 Imports System.Net.Http
 Imports System.Net.Http.Headers
-Imports System.Windows.Forms.VisualStyles.VisualStyleElement
-Imports System.Xml.Linq
 
 ''' <summary>
 ''' Die Hauptklasse der Windows Forms-Anwendung, die Funktionen zum Abrufen von XML-Daten von einer API und zum Anzeigen dieser Daten in einem TreeView-Steuerelement bereitstellt.
@@ -88,48 +86,70 @@ Public Class Form1
   End Function
 
   ''' <summary>
-  ''' Asynchrone Methode zum Aufrufen einer API und Abrufen der Antwort als String.
+  ''' Asynchrone Methode zum Abrufen von XML-Daten von einer angegebenen URL mit einem optionalen Timeout.
   ''' </summary>
-  ''' <param name="url">Die URL der API</param>
-  ''' <returns>Die API-Antwort als String</returns>
-  Public Async Function ApiAufrufenAsync(url As String) As Task(Of String)
-
-    Try
-      ' Prüfen, ob eine URL übergeben wurde
-      Using client As New HttpClient()
-        ' Timeout auf 30 Sekunden setzen
-        client.Timeout = TimeSpan.FromSeconds(30)
+  ''' <param name="url"></param>
+  ''' <param name="timeoutSeconds"></param>
+  ''' <returns></returns>
+  Public Async Function ApiAufrufenAsync(url As String, Optional timeoutSeconds As Integer = 30) As Task(Of String)
+    ' Prüfen, ob die URL null oder leer ist
+    If String.IsNullOrWhiteSpace(url) Then
+      Throw New ArgumentException("Die URL darf nicht leer sein.", NameOf(url))
+    End If
+    ' Timeout für die Anfrage festlegen
+    Using cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds))
+      ' 
+      Using request As New HttpRequestMessage(HttpMethod.Get, url)
+        request.Headers.Accept.Clear()
+        request.Headers.Accept.Add(New MediaTypeWithQualityHeaderValue("application/xml"))
         ' HTTP-Request ausführen
-        Dim response As HttpResponseMessage =
-            Await client.GetAsync(url)
-
+        Dim response As HttpResponseMessage = Await _httpClient.SendAsync(request, cts.Token).ConfigureAwait(False)
         ' HTTP-Fehler wie 404, 500 usw. erkennen
         response.EnsureSuccessStatusCode()
-
-        ' JSON als String zurückgeben
-        Dim json As String =
-            Await response.Content.ReadAsStringAsync()
-
-
-        Return json
-
+        ' XML als String zurückgeben
+        Dim content As String = Await response.Content.ReadAsStringAsync().ConfigureAwait(False)
+        Return content
       End Using
-
-    Catch ex As TaskCanceledException
-      ' Timeout
-      Return "{""error"":""TaskCanceledException""}"
-
-    Catch ex As HttpRequestException
-      ' HTTP- oder Netzwerkfehler
-      Return "{""error"":""HttpRequestException""}"
-
-    Catch ex As Exception
-      ' Sonstige Fehler
-      Return "{""error"":""Exception""}"
-
-    End Try
-
+    End Using
   End Function
+  'Public Async Function ApiAufrufenAsync(url As String) As Task(Of String)
+
+  '  Try
+  '    ' Prüfen, ob eine URL übergeben wurde
+  '    Using client As New HttpClient()
+  '      ' Timeout auf 30 Sekunden setzen
+  '      client.Timeout = TimeSpan.FromSeconds(30)
+  '      ' HTTP-Request ausführen
+  '      Dim response As HttpResponseMessage =
+  '          Await client.GetAsync(url)
+
+  '      ' HTTP-Fehler wie 404, 500 usw. erkennen
+  '      response.EnsureSuccessStatusCode()
+
+  '      ' JSON als String zurückgeben
+  '      Dim json As String =
+  '          Await response.Content.ReadAsStringAsync()
+
+
+  '      Return json
+
+  '    End Using
+
+  '  Catch ex As TaskCanceledException
+  '    ' Timeout
+  '    Return "{""error"":""TaskCanceledException""}"
+
+  '  Catch ex As HttpRequestException
+  '    ' HTTP- oder Netzwerkfehler
+  '    Return "{""error"":""HttpRequestException""}"
+
+  '  Catch ex As Exception
+  '    ' Sonstige Fehler
+  '    Return "{""error"":""Exception""}"
+
+  '  End Try
+
+  'End Function
 
   ''' <summary>
   ''' Event-Handler für den Klick auf Button1. Ruft die API auf und lädt die XML-Daten in das TreeView.
@@ -138,13 +158,29 @@ Public Class Form1
   ''' <param name="e">Die Ereignisdaten</param>
   Private Async Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
 
-    TreeView1.Nodes.Clear()
-    ' URL der API, die XML-Daten zurückgibt
-    Dim url As String = "http://www.efa-bw.de/nvbw/XML_DM_REQUEST?typeInfo_dm=stopID&nameInfo_dm=6900090&deleteAssignedStops_dm=0&mode=direct&useRealtime=1&limit=10"
-    ' Asynchrone Methode aufrufen, um die API zu erreichen und die XML-Daten abzurufen
-    Dim json As String = Await ApiAufrufenAsync(url)
-    '
-    LoadXmlToTreeView(json)
+    Try
+      Button1.Enabled = False
+      Cursor = Cursors.WaitCursor
+
+      TreeView1.Nodes.Clear()
+      Dim url As String = "https://www.efa-bw.de/nvbw/XML_DM_REQUEST?typeInfo_dm=stopID&nameInfo_dm=6900090&deleteAssignedStops_dm=0&mode=direct&useRealtime=1&limit=10"
+      Dim xml As String = Await ApiAufrufenAsync(url) ' einheitlich XML erwarten
+      LoadXmlToTreeView(xml)
+    Catch ex As Exception
+      MessageBox.Show($"Fehler beim Abrufen/Parsen: {ex.Message}", "Fehler", MessageBoxButtons.OK, MessageBoxIcon.Error)
+      ' optional: Logging ins Logfile
+    Finally
+      Button1.Enabled = True
+      Cursor = Cursors.Default
+    End Try
+
+    'TreeView1.Nodes.Clear()
+    '' URL der API, die XML-Daten zurückgibt
+    'Dim url As String = "http://www.efa-bw.de/nvbw/XML_DM_REQUEST?typeInfo_dm=stopID&nameInfo_dm=6900090&deleteAssignedStops_dm=0&mode=direct&useRealtime=1&limit=10"
+    '' Asynchrone Methode aufrufen, um die API zu erreichen und die XML-Daten abzurufen
+    'Dim json As String = Await ApiAufrufenAsync(url)
+    ''
+    'LoadXmlToTreeView(json)
 
 
   End Sub
